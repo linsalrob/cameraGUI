@@ -121,11 +121,7 @@ class MyFrame(wx.Frame):
         wx.Frame.SetStatusText(self, 'wxCamGui initialized.')        
         
     def SetFilePrefix(self, e):
-        dlg = wx.FileDialog(
-            self, defaultDir=os.getcwd(),
-            defaultFile=self.fileNamePrefixTextCtrl,
-             wildcard=images,
-              style=wx.SAVE)
+        pass #May need implementation
      
     def OnDirectory(self, e):
         self.dlg = wx.DirDialog(self, "Choose a directory:",
@@ -221,15 +217,7 @@ class SettingsFrame(wx.Frame):
     def OnAcceptSettings(self, e):
         # forward the slider change events to the image window
         # note: self.images = NAME_OF_IMAGE_CLASS
-        frameRateTextCtrl
-        frameStartTriggerModeComboBox
-        exposureModeComboBox
-        exposureValueTextCtrl
-        gainModeComboBox
-        gainValueTextCtrl
-        whitebalModeComboBox
-        pixelFormatComboBox
-        packetSizeTextCtrl.Bind(wx.EVT_TEXT, self.images.OnScrollRed)
+        pass 
     
     def OnCancelSettings(self, e):
         pass #IMPLEMENTATION REQUIRED
