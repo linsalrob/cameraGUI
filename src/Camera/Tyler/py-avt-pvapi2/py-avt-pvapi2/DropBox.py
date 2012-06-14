@@ -11,7 +11,7 @@ INCOMING_BUFFER_SIZE = INCOMING_IMAGE_WIDTH * INCOMING_IMAGE_HEIGHT * 3
 
 class DropBox:
     def __init__(self, f):
-        self.DelayBetweenImageDisplays = 2
+        self.DelayBetweenImageDisplays = 1
         self.NextFileToLoad = f
         self.useFirstFeed = True
         self.firstFeed = wx.EmptyImage

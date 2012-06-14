@@ -59,7 +59,7 @@ class ImageViewPanel(wx.Panel):
         self.imageQueue[0] = (copy.copy(self.blankBitmap))
         self.queuePos = 4
         self.currentQueue = 4
-        largePanel.SetImage(wx.BitmapFromBuffer(1360, 1024, drop.GetLiveFeed()))
+        largePanel.SetImage(copy.copy(self.blankBitmap))
         smallPanel1.SetImage(copy.copy(self.blankBitmap))
         smallPanel2.SetImage(copy.copy(self.blankBitmap))
         smallPanel3.SetImage(copy.copy(self.blankBitmap))
@@ -110,6 +110,8 @@ class ImageViewPanel(wx.Panel):
                     self.RotateImages(1, None)
                 else:
                     self.RotateImages(0, None)
+        self.Refresh(True)
+        wx.EVT_PAINT(self, self.OnPaint)
 
     def ScrollNext(self, e):
         if self.currentQueue != self.queuePos:
@@ -337,6 +339,10 @@ class TestApp(wx.App):
             old = wx.EventLoop.GetActive()
             wx.EventLoop.SetActive(evtloop)
 
+            oldtime = time.clock()
+            counter = 0
+            totaltime = 0
+            
             # This outer loop determines when to exit the application,
             # for this example we let the main frame reset this flag
             # when it closes.
@@ -345,14 +351,16 @@ class TestApp(wx.App):
                 # whatever you implemented your own MainLoop for.  It
                 # should be quick and non-blocking, otherwise your GUI
                 # will freeze.
-
+                print time.clock() - oldtime
+                oldtime = time.clock()
+                
                 image = self.camera.capture()
-                image_width = camera.attrUint32Get('Width')
-                image_height = camera.attrUint32Get('Height')
+                image_width = self.camera.attrUint32Get('Width')
+                image_height = self.camera.attrUint32Get('Height')
                 wximage = wx.EmptyImage(image_width, image_height)
                 wximage.SetData(image)
                 bmp = wx.BitmapFromImage(wximage)
-                drop.firstFeed = bmp
+                drop.firstFeed = wx.EmptyBitmap(1360, 1024)
                 
                 if time.clock() >= self.nextimage:
                     self.index += 1
@@ -360,7 +368,7 @@ class TestApp(wx.App):
                         self.index = 0
                     drop.NextFileToLoad = self.filenames[self.index]
                     #self.nextimage = time.clock() + random.randint(1,1)
-                    self.nextimage = time.clock() + 1
+                    self.nextimage = time.clock() + 0.75
                 if self.myframe:
                     self.myframe.Update()
                 else:
