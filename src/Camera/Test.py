@@ -1,13 +1,17 @@
 #IMPORTANT: For now, i've disabled all Setting attributes except for 
 #exposure value and pixel format
-
 import wx
+import sys
 import os
-from pvAPI import *
-import thread
+import pvAPI
+from wx.lib.wordwrap import wordwrap
 import time
+import pvCodes
+from PIL import Image
 
-#p = CameraDriver()
+p = pvAPI.CameraDriver()
+pframe = pvAPI.Frame()
+time.clock()
 
 #Global Constants
 WINDOW_SIZE = wx.Size(1000, 580)
@@ -15,6 +19,37 @@ WINDOW_POSITION = wx.Point(50, 50)
 SETTINGS_SIZE = wx.Size(550, 440)
 MAIN_PANEL_RGB = wx.Colour(150, 150, 150)
 PANEL_RGB = wx.Colour(200, 200, 200)
+FRAMESCOUNT = 15
+
+#Run Variables
+running = False
+folder = 0
+current = 0
+filesPerFolder = 0
+displayHold = 5
+path = ''
+prefix = ''
+fileToSave = ''
+lastFileSaved = ''
+intBuffer = ''
+cmdBuffer = ''
+imageType = ''
+nextImageTime = None
+filesPerFolderString = ''
+displayHoldString = ''
+imageToDisplay = wx.Image
+bitmapToDisplay = wx.Bitmap
+
+#Camera Structure
+class tCamera:
+    pass
+#The following directly accesses an object's contents
+GCamera = tCamera()
+GCamera.UID = 0
+GCamera.Handle = None 
+GCamera.Frames = [] 
+GCamera.SaveFrame = False 
+GCamera.Filename = None 
 
 #Enumeration
 SETTINGS = wx.ID_HIGHEST + 1
@@ -25,15 +60,115 @@ QUALITY_SLIDER = wx.ID_HIGHEST + 5
 SETTINGS_ACCEPT = wx.ID_HIGHEST + 6
 SETTINGS_CANCEL = wx.ID_HIGHEST + 7
 
-images = "JPG (*.jpg)|*.jpg"
+def WaitForCamera():
+    print 'Waiting for a camera'
+    while (p.cameraCount() != 0):
+        print '.'
+        time.sleep(2.5)
+    print '\n'
+    
+#Frame completed callback executes on seperate driver thread.
+#One callback thread per camera. If a frame callback function has not 
+#completed, and the next frame returns, the next frame's callback function is queued. 
+#This situation is best avoided (camera running faster than host can process frames). 
+#Spend as little time in this thread as possible and offload processing
+#to other threads or save processing until later.
+#
+#Note: If a camera is unplugged, this callback will not get called until PvCaptureQueueClear.
+#i.e. callback with pFrame->Status = ePvErrUnplugged doesn't happen -- so don't rely
+#on this as a test for a missing camera. 
 
+def FrameDoneCB(pFrame):
+    #Display FrameCount and Status
+    if pFrame.Status() == pvCodes.pvErrors.__init__('0'):
+        print 'Frame: %s returned successfully.\n' % pFrame.FrameCount() 
+        if running == True:
+            if ((current - 1) - (folder * filesPerFolder) == 0):
+                folder += 1
+            fileToSave = path
+            os.makedirs(path)   
+            fileToSave += "\\f"
+            if folder < 10:
+                fileToSave += "00"
+            elif folder < 100:
+                fileToSave += "0"
+            intBuffer = str(folder)
+            fileToSave += intBuffer    
+            os.makedirs(fileToSave)
+            fileToSave += '\\' + prefix + "_"
+            if current < 10:
+                fileToSave += "00000"
+            elif current < 100:
+                fileToSave += "0000"
+            elif current < 1000:
+                fileToSave += "000"
+            elif current < 10000:
+                fileToSave += "00"
+            elif current < 100000:
+                fileToSave += "0"
+            current += 1
+            intBuffer = str(current)
+            fileToSave += intBuffer + '.tiff'
+            MyFrame.runInfoTextCtrl.SetValue(fileToSave)
+            #save image
+            
+            if (Image.OPEN(GCamera.Filename).SAVE(pFrame) == False):
+                {}
+            else:
+                MyFrame.runInfoTextCtrl.SetValue(fileToSave)
+        
+            if nextImageTime < time.clock():
+                nextImageTime = time.clock() + displayHold
+    #Requeu frame
+    if pFrame.Status != pvCodes.pvErrors.__init__('14'):
+        errCode = p.captureFrame(GCamera.Handle)
+
+def CameraGet():
+    camList = p.cameraList()
+    if len(camList) == 1:
+        GCamera.UID = pvAPI.CameraInfoEx._fields_UniqueID
+        return True
+    else:
+        return False
+
+def CameraSetup():
+    GCamera.Handle = p.cameraOpen(GCamera.UID)
+    if GCamera.Handle == None:
+        return False
+    frameSize = p.attrUint32Get(GCamera.Handle, 'TotalBytesPerFrame')
+    if frameSize == None:
+        return False
+#     C++: 
+#    allocate the frame buffers
+#    for(int i=0;i<FRAMESCOUNT && !failed;i++)
+#    {
+#        GCamera.Frames[i].ImageBuffer = new char[FrameSize];
+#        if(GCamera.Frames[i].ImageBuffer)
+#            GCamera.Frames[i].ImageBufferSize = FrameSize;
+#        else
+#            failed = true;
+#    }
+    return True
+
+def CameraUnsetup():
+    p.cameraClose(GCamera.Handle)
+    del GCamera.Frames
+    del GCamera.Handle
+
+def CameraStart():
+    failed = False
+    p.
+
+def CameraStop():
+    pass #IMPLEMENTATION
+    
 class MyApp(wx.App):
-   
     def OnInit(self):
-       frame = MyFrame()
-       frame.Show()
-       self.SetTopWindow(frame)
-       return True
+        frame = MyFrame()
+        frame.Show()
+        self.SetTopWindow(frame)
+        return True
+    #nextImageTime = time(None);
 
 class MyFrame(wx.Frame):
    
@@ -45,11 +180,12 @@ class MyFrame(wx.Frame):
         #Menu
         fileMenu = wx.Menu()
         helpMenu = wx.Menu()
-        helpMenu.Append(wx.ID_ABOUT, 'About...\tF1', 'Show about dialog')
+        about = helpMenu.Append(wx.ID_ABOUT, 'About...\tF1', 'Show about dialog')
         setng = fileMenu.Append(SETTINGS, 'Settings\tAlt-S', 'Open settings window')
         qui = fileMenu.Append(wx.ID_EXIT, 'Exit\tAlt-X', 'Quit this program') 
         self.Bind(wx.EVT_MENU, self.OnQuit, qui)
         self.Bind(wx.EVT_MENU, self.OnSettings, setng)
+        self.Bind(wx.EVT_MENU, self.OnAbout, about)
 
         #Menu Bar
         menuBar = wx.MenuBar()
@@ -61,14 +197,14 @@ class MyFrame(wx.Frame):
         mainPanel = wx.Panel(self, pos=wx.Point(0, 0), size=wx.Size(100, 580))
         hardwareSettingsPanel = wx.Panel(mainPanel, pos=wx.Point(20, 20), size=wx.Size(200, 200), style=wx.SUNKEN_BORDER)
         fileSettingsPanel = wx.Panel(mainPanel, pos=wx.Point(20, 240), size=wx.Size(200, 240), style=wx.SUNKEN_BORDER)
-        runPanel = wx.Panel(mainPanel, pos=wx.Point(240, 10), size=wx.Size(180, 30), style=wx.SUNKEN_BORDER)
-        runInfoPanel = wx.Panel(mainPanel, pos=wx.Point(430, 10), size=wx.Size(340, 30), style=wx.SUNKEN_BORDER)
-        mainImagePanel = wx.Panel(mainPanel, pos=wx.Point(240, 45), size=wx.Size(530, 340), style=wx.SUNKEN_BORDER)
-        previousImagesPanel1 = wx.Panel(mainPanel, pos=wx.Point(780, 45), size=wx.Size(180, 125), style=wx.SUNKEN_BORDER)
-        previousImagesPanel2 = wx.Panel(mainPanel, pos=wx.Point(780, 180), size=wx.Size(180, 125), style=wx.SUNKEN_BORDER)
-        previousImagesPanel3 = wx.Panel(mainPanel, pos=wx.Point(780, 315), size=wx.Size(180, 125), style=wx.SUNKEN_BORDER)        
-        gpsPanel = wx.Panel(mainPanel, pos=wx.Point(240, 449), size=wx.Size(355, 30), style=wx.SUNKEN_BORDER)
-        depthPanel = wx.Panel(mainPanel, pos=wx.Point(605, 449), size=wx.Size(355, 30), style=wx.SUNKEN_BORDER)
+        runPanel = wx.Panel(mainPanel, pos=wx.Point(230, 10), size=wx.Size(180, 30), style=wx.SUNKEN_BORDER)
+        runInfoPanel = wx.Panel(mainPanel, pos=wx.Point(420, 10), size=wx.Size(340, 30), style=wx.SUNKEN_BORDER)
+        mainImagePanel = wx.Panel(mainPanel, pos=wx.Point(230, 45), size=wx.Size(530, 340), style=wx.SUNKEN_BORDER)
+        previousImagesPanel1 = wx.Panel(mainPanel, pos=wx.Point(770, 45), size=wx.Size(180, 125), style=wx.SUNKEN_BORDER)
+        previousImagesPanel2 = wx.Panel(mainPanel, pos=wx.Point(770, 180), size=wx.Size(180, 125), style=wx.SUNKEN_BORDER)
+        previousImagesPanel3 = wx.Panel(mainPanel, pos=wx.Point(770, 315), size=wx.Size(180, 125), style=wx.SUNKEN_BORDER)        
+        gpsPanel = wx.Panel(mainPanel, pos=wx.Point(230, 449), size=wx.Size(355, 30), style=wx.SUNKEN_BORDER)
+        depthPanel = wx.Panel(mainPanel, pos=wx.Point(595, 449), size=wx.Size(355, 30), style=wx.SUNKEN_BORDER)
         
         #Panel Configurations
         mainPanel.SetBackgroundColour(MAIN_PANEL_RGB) 
@@ -104,7 +240,8 @@ class MyFrame(wx.Frame):
         imageTypeChoices = ['.jpg']
         imageTypeComboBox = wx.ComboBox(fileSettingsPanel, -1, '', wx.Point(25, 156), wx.Size(145, -1), imageTypeChoices)
         
-        self.filePathTextCtrl = wx.TextCtrl(fileSettingsPanel, -1, '', wx.Point(25, 36), wx.Size(85, -1))  
+        os.chdir('C:\\') 
+        self.filePathTextCtrl = wx.TextCtrl(fileSettingsPanel, -1, os.getcwd(), wx.Point(25, 36), wx.Size(85, -1))  
         self.fileNamePrefixTextCtrl = wx.TextCtrl(fileSettingsPanel, -1, '', wx.Point(25, 76), wx.Size(145, -1))   
         self.Bind(wx.EVT_TEXT, self.SetFilePrefix, self.fileNamePrefixTextCtrl)
         self.filesPerFolderTextCtrl = wx.TextCtrl(fileSettingsPanel, -1, '500', wx.Point(25, 116), wx.Size(60, -1))
@@ -141,13 +278,41 @@ class MyFrame(wx.Frame):
         self.dlg.Destroy()
           
     def OnStartStop(self, e):
-        pass #IMPLEMENTATION REQUIRED
+        if running == False:
+            folder = 1
+            current = 1
+            filesPerFolder = str(self.filesPerFolderTextCtrl.GetValue())
+            path = self.filesPerFolderTextCtrl.GetValue()
+            prefix = self.fileNamePrefixTextCtrl.GetValue() 
+            displayHold = str(self.displayHoldTextCtrl.GetValue())
+        else:
+            running == False
     
     def OnQuit(self, e):
         self.Close()
         
     def OnAbout(self, e):
-        pass #IMPLEMENTATION REQUIRED
+        #The following is the basic layout, need to change info!!!!!!
+        info = wx.AboutDialogInfo()
+        info.Name = "Hello World"
+        info.Version = "1.2.3"
+        info.Copyright = "(C) 2006 Programmers and Coders Everywhere"
+        info.Description = wordwrap(
+            "A \"hello world\" program is a software program that prints out "
+            "\"Hello world!\" on a display device. It is used in many introductory "
+            "tutorials for teaching a programming language."
+            
+            "\n\nSuch a program is typically one of the simplest programs possible "
+            "in a computer language. A \"hello world\" program can be a useful "
+            "sanity test to make sure that a language's compiler, development "
+            "environment, and run-time environment are correctly installed.",
+            350, wx.ClientDC(self))
+        info.WebSite = ("http://en.wikipedia.org/wiki/Hello_world", "Hello World home page")
+        info.Developers = [ "Joe Programmer",
+                            "Jane Coder",
+                            "Vippy the Mascot" ]
+
+        wx.AboutBox(info)
     
     def OnSliders(self, e):
         self.pos1 = self.filesPerFolderSlider.GetValue()
@@ -246,14 +411,7 @@ class SettingsFrame(wx.Frame):
     
     def OnQuit(self, e):
         self.Close()
-
-def WaitForCamera():
-    print 'Waiting for a camera'
-    while not p.cameraCount():
-        print '.'
-        time.sleep(2.5)
-    print '\n'
-
+    
 if __name__ == '__main__':
     app = MyApp(False)
     app.MainLoop()
