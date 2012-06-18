@@ -3,14 +3,15 @@
 import wx
 import sys
 import os
-import pvAPI
+import pvapi
 from wx.lib.wordwrap import wordwrap
 import time
 import pvCodes
 from PIL import Image
+from ctypes import *
 
-p = pvAPI.CameraDriver()
-pframe = pvAPI.Frame()
+p = pvapi.PvAPI()
+pframe = pvapi.Frame
 time.clock()
 
 #Global Constants
@@ -80,7 +81,7 @@ def WaitForCamera():
 
 def FrameDoneCB(pFrame):
     #Display FrameCount and Status
-    if pFrame.Status() == pvCodes.pvErrors.__init__('0'):
+    if pFrame.Status == pvapi.ResultValues.ePvErrSuccess:
         print 'Frame: %s returned successfully.\n' % pFrame.FrameCount() 
         if running == True:
             if ((current - 1) - (folder * filesPerFolder) == 0):
@@ -120,63 +121,93 @@ def FrameDoneCB(pFrame):
             if nextImageTime < time.clock():
                 nextImageTime = time.clock() + displayHold
     #Requeu frame
-    if pFrame.Status != pvCodes.pvErrors.__init__('14'):
-        errCode = p.captureFrame(GCamera.Handle)
+    if pFrame.Status != pvapi.ResultValues.ePvErrCancelled:
+        errCode = p.dll.PvCaptureQueueFrame(GCamera.Handle)
 
 def CameraGet():
     camList = p.cameraList()
     if len(camList) == 1:
-        GCamera.UID = pvAPI.CameraInfoEx._fields_UniqueID
+        GCamera.UID = pvapi.Camera.uid(camList[0])
         return True
     else:
         return False
 
 def CameraSetup():
-    GCamera.Handle = p.cameraOpen(GCamera.UID)
+    GCamera.Handle = p.open(GCamera.UID)
     if GCamera.Handle == None:
         return False
-    frameSize = p.attrUint32Get(GCamera.Handle, 'TotalBytesPerFrame')
+    frameSize = p.attrUint32Get('TotalBytesPerFrame')
     if frameSize == None:
         return False
-#     C++: 
-#    allocate the frame buffers
-#    for(int i=0;i<FRAMESCOUNT && !failed;i++)
-#    {
-#        GCamera.Frames[i].ImageBuffer = new char[FrameSize];
-#        if(GCamera.Frames[i].ImageBuffer)
-#            GCamera.Frames[i].ImageBufferSize = FrameSize;
-#        else
-#            failed = true;
-#    }
     return True
 
 def CameraUnsetup():
-    p.cameraClose(GCamera.Handle)
+    p.close()
     del GCamera.Frames
     del GCamera.Handle
 
 def CameraStart():
-    failed = False
-    p.
+    fail = False 
+    if pvapi.Camera.adjustPacketSize(8228) != pvapi.ResultValues.ePvErrSuccess:
+        return False
+    if pvapi.Camera.captureStart() != pvapi.ResultValues.ePvErrSuccess:
+        return False  
+    for j in range(FRAMESCOUNT):
+        if [p.dll.PvCaptureQueueFrame(GCamera.Handle, GCamera.Frames[j], FrameDoneCB) 
+            == p.ePvErrSuccess]:
+            p.captureEnd()
+            fail = True
+    if fail:
+        return False
+    if [p.attrEnumSet('FrameStartTriggerMode', 'FixedRate') != p.ePvErrSuccess and 
+        p.attrEnumSet('AcquisitionMode', 'Continuous') != p.ePvErrSuccess and 
+        p.commandRun('AcquisitionStart') != p.ePvErrSuccess]:
+        p.dll.PvCaptureQueueClear(GCamera.Handle)
+        p.captureEnd()
+        return False
+    return True    
 
 def CameraStop():
-    pass #IMPLEMENTATION
+    p.commandRun('AcquisitionStop')
+    time.sleep(.2)
+    p.dll.PvCaptureQueueClear(GCamera.Handle)
+    p.captureEnd()
     
 class MyApp(wx.App):
     def OnInit(self):
-        frame = MyFrame()
-        frame.Show()
+        wx.InitAllImageHandlers()
+        nextImageTime = time.clock()
+        p.initialize()
+       
+        WaitForCamera()
+        
+        if CameraGet() == True:
+            if CameraSetup() == True:
+                CameraStart()      
+       
+        settingsFrame = SettingsFrame('Settings') 
+        frame = MyFrame('wxCamGui')
+        frame.Show(True)
         self.SetTopWindow(frame)
+        
+        val = c_float
+        p.dll.PvAttrFloat32Get(GCamera.Handle, 'FrameRate', byref(val))
+        settingsFrame.frameRateTextCtrl.SetValue(val)
+        settingsFrame.frameStartTriggerModeComboBox.SetValue(p.attrEnumGet('FrameStartTriggerMode'))
+        settingsFrame.exposureModeComboBox.SetValue(p.attrEnumGet('ExposureMode'))
+        settingsFrame.exposureValueTextCtrl.SetValue(p.attrUint32Get('ExposureValue'))
+        settingsFrame.gainModeComboBox.SetValue(p.attrEnumGet('GainMode'))
+        settingsFrame.SetValue(p.attrUint32Get('GainValue'))
+        settingsFrame.whitebalModeComboBox.SetValue(p.attrEnumGet('WhitebalMode'))
+        settingsFrame.pixelFormatComboBox.SetValue(p.attrEnumGet('PixelFormat'))
+        settingsFrame.packetSizeTextCtrl.SetValue(p.attrUint32Get('PacketSize'))
+        
         return True
-    #nextImageTime = time(None);
 
 class MyFrame(wx.Frame):
-   
-    title = "Title"
     
-    def __init__(self):
-        wx.Frame.__init__(self, None, 1, self.title, size=WINDOW_SIZE, pos=WINDOW_POSITION)
-        
+    def __init__(self, title):         
+        wx.Frame.__init__(self, None, 1, title=title, size=WINDOW_SIZE, pos=WINDOW_POSITION)
         #Menu
         fileMenu = wx.Menu()
         helpMenu = wx.Menu()
@@ -243,7 +274,6 @@ class MyFrame(wx.Frame):
         os.chdir('C:\\') 
         self.filePathTextCtrl = wx.TextCtrl(fileSettingsPanel, -1, os.getcwd(), wx.Point(25, 36), wx.Size(85, -1))  
         self.fileNamePrefixTextCtrl = wx.TextCtrl(fileSettingsPanel, -1, '', wx.Point(25, 76), wx.Size(145, -1))   
-        self.Bind(wx.EVT_TEXT, self.SetFilePrefix, self.fileNamePrefixTextCtrl)
         self.filesPerFolderTextCtrl = wx.TextCtrl(fileSettingsPanel, -1, '500', wx.Point(25, 116), wx.Size(60, -1))
         self.filesPerFolderSlider = wx.Slider(fileSettingsPanel, FILESPERFOLDER_SLIDER, 500, 1, 1000, wx.Point(85, 116), wx.Size(90, -1))        
         self.qualityTextCtrl = wx.TextCtrl(fileSettingsPanel, -1, '50', wx.Point(25, 196), wx.Size(60, -1))
@@ -263,9 +293,7 @@ class MyFrame(wx.Frame):
         wx.Frame.CreateStatusBar(self, 2)
         wx.Frame.SetStatusText(self, 'wxCamGui initialized.')        
         
-    def SetFilePrefix(self, e):
-        pass #May need implementation
-     
+ 
     def OnDirectory(self, e):
         self.dlg = wx.DirDialog(self, "Choose a directory:",
                           style=wx.DD_DEFAULT_STYLE 
@@ -289,6 +317,9 @@ class MyFrame(wx.Frame):
             running == False
     
     def OnQuit(self, e):
+        CameraStop()
+        CameraUnsetup()
+        p.uninitialize()
         self.Close()
         
     def OnAbout(self, e):
@@ -326,7 +357,7 @@ class MyFrame(wx.Frame):
         self.displayHoldTextCtrl.SetValue(str3)
     
     def OnSettings(self, e):
-        SettingsFrame('Settings').Show()
+        settingsFrame.ShowSettings(self)
 
 class SettingsFrame(wx.Frame):
     
@@ -397,21 +428,29 @@ class SettingsFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnCancelSettings, cancelSettingsButton)
     
     def OnAcceptSettings(self, e):
-        # Settings need to affect the camera settings
-        pass #IMPLEMENTATION REQUIRED
+        frameRate = c_float(self.frameRateTextCtrl.GetValue())
+        p.dll.PvAttrFloat32Set(GCamera.Handle, 'FrameRate', frameRate)
+        p.attrEnumSet('ExposureMode', self.exposureModeComboBox.GetValue())
+        p.attrUint32Set('ExposureValue', self.exposureValueTextCtrl.GetValue())
+        p.attrEnumSet('GainMode', self.gainModeComboBox.GetValue())
+        p.attrUint32Set('GainValue', self.gainValueTextCtrl.GetValue())
+        p.attrEnumSet('WhitebalMode', self.whitebalModeComboBox.GetValue())
+        p.attrEnumSet('PixelFormat', self.pixelFormatComboBox.GetValue())
+        p.attrUint32Set('PacketSize', self.packetSizeTextCtrl.GetValue())
+        self.ShowSettings(False)
     
     def OnCancelSettings(self, e):
-        pass #IMPLEMENTATION REQUIRED
+        self.ShowSettings(False)
     
-    def DetectGpsPort(self, e):
-        pass #IMPLEMENTATION REQUIRED
+    def ShowSettings(self, e):
+        self.Show()
     
-    def DetectSounderPort(self, e):
-        pass #IMPLEMENTATION REQUIRED 
+    def SettingsClose(self, e):
+        self.Close()    
     
     def OnQuit(self, e):
         self.Close()
-    
+
 if __name__ == '__main__':
     app = MyApp(False)
     app.MainLoop()
