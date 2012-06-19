@@ -289,7 +289,7 @@ class MyFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.OnDirectory, filePathButton)
 
         #Run Panel
-        startStopButton = wx.Button(runPanel, STARTSTOP_BUTTON, 'Start/Stop', wx.Point(0, 0), wx.Size(175, 25))
+        startStopButton = wx.Button(runPanel, STARTSTOP_BUTTON, 'Start/Stop', wx.Point(1, 1), wx.Size(175, 25))
 
         #Run Info Panel
         runInfoTextCtrl = wx.TextCtrl(runInfoPanel, -1, '', wx.Point(2, 2), wx.Size(332, -1))
@@ -373,9 +373,25 @@ class SettingsFrame(wx.Frame):
         #Configurations of panels in Settings
         settingsPanel = wx.Panel(self, size=wx.Size(0, 0), pos=wx.Point(500, 500))
         innerSettingsPanel = wx.Panel(settingsPanel, size=wx.Size(510, 340), pos=wx.Point(10, 10), style=wx.SUNKEN_BORDER)
+        frameRatePanel = wx.Panel(innerSettingsPanel, size=wx.Size(200, -1), pos=wx.Point(200, 20), style=wx.SUNKEN_BORDER)
+        frameStartPanel = wx.Panel(innerSettingsPanel, size=wx.Size(200, -1), pos=wx.Point(200, 50), style=wx.SUNKEN_BORDER)
+        exposureModePanel = wx.Panel(innerSettingsPanel, size=wx.Size(200, -1), pos=wx.Point(200, 80), style=wx.SUNKEN_BORDER)
+        gainModePanel = wx.Panel(innerSettingsPanel, size=wx.Size(200, -1), pos=wx.Point(200, 140), style=wx.SUNKEN_BORDER)
+        gainValuePanel = wx.Panel(innerSettingsPanel, size=wx.Size(200, -1), pos=wx.Point(200, 170), style=wx.SUNKEN_BORDER)
+        whiteBalancePanel = wx.Panel(innerSettingsPanel, size=wx.Size(200, -1), pos=wx.Point(200, 200), style=wx.SUNKEN_BORDER)
+        pixelFormatPanel = wx.Panel(innerSettingsPanel, size=wx.Size(200, -1), pos=wx.Point(200, 230), style=wx.SUNKEN_BORDER)
+        packetSizePanel = wx.Panel(innerSettingsPanel, size=wx.Size(200, -1), pos=wx.Point(200, 260), style=wx.SUNKEN_BORDER)
         acceptSettingsPanel = wx.Panel(settingsPanel, size=wx.Size(200, 35), pos=wx.Point(320, 360), style=wx.SUNKEN_BORDER)
         settingsPanel.SetBackgroundColour(MAIN_PANEL_RGB)
         innerSettingsPanel.SetBackgroundColour(PANEL_RGB)
+        frameRatePanel.SetBackgroundColour('white')
+        frameStartPanel.SetBackgroundColour('white')
+        exposureModePanel.SetBackgroundColour('white')
+        gainModePanel.SetBackgroundColour('white')
+        gainValuePanel.SetBackgroundColour('white')
+        whiteBalancePanel.SetBackgroundColour('white')
+        pixelFormatPanel.SetBackgroundColour('white')
+        packetSizePanel.SetBackgroundColour('white')
         acceptSettingsPanel.SetBackgroundColour(PANEL_RGB)
         wx.StaticText(innerSettingsPanel, -1, 'Frame Rate', wx.Point(25, 22))
         wx.StaticText(innerSettingsPanel, -1, 'Frame Start Trigger Mode', wx.Point(25, 52))
@@ -388,39 +404,39 @@ class SettingsFrame(wx.Frame):
         wx.StaticText(innerSettingsPanel, -1, 'Packet Size', wx.Point(25, 262))
     
         #Frame Rate Setting
-        self.frameRateTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 20), wx.Size(200, -1))
+        self.frameRateTextCtrl = wx.StaticText(frameRatePanel, -1, 'FrameRate Here', wx.Point(3, 1), wx.Size(200, 30))
         
         #Frame Start Trigger Mode Setting
-        frameStartTriggerModeChoices = ['FreeRun', 'SyncIn1', 'SyncIn2', 'FixedRate', 'Software']
-        self.frameStartTriggerModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 50), wx.Size(200, -1), frameStartTriggerModeChoices)
+        '''Future reference: ['FreeRun', 'SyncIn1', 'SyncIn2', 'FixedRate', 'Software']'''
+        self.frameStartTriggerModeComboBox = wx.StaticText(frameStartPanel, -1, 'FrameStart Here', wx.Point(3, 1), wx.Size(200, -1))
         
         #Exposure Mode Setting
-        exposureModeChoices = ['Manual', 'Auto', 'AutoOnce', 'External']
-        self.exposureModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 80), wx.Size(200, -1), exposureModeChoices)
+        '''Future reference: ['Manual', 'Auto', 'AutoOnce', 'External']'''
+        self.exposureModeComboBox = wx.StaticText(exposureModePanel, -1, 'ExposureMode Here', wx.Point(3, 1), wx.Size(200, -1))
     
         #Exposure Value Setting
         self.exposureValueTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 110), wx.Size(200, -1))
     
         #Gain Mode Choices Setting
-        gainModeChoices = ['Manual', 'Auto', 'AutoOnce']
-        self.gainModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 140), wx.Size(200, -1), gainModeChoices)
+        '''Future reference: 'Manual', 'Auto', 'AutoOnce']'''
+        self.gainModeComboBox = wx.StaticText(gainModePanel, -1, 'GainMode Here', wx.Point(3, 1), wx.Size(200, -1))
         
         #Gain Value Setting
-        self.gainValueTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 170), wx.Size(200, -1))
+        self.gainValueTextCtrl = wx.StaticText(gainValuePanel, -1, 'GainValue Here', wx.Point(3, 1), wx.Size(200, -1))
     
         #White Balance Mode Setting
-        whitebalModeChoices = ['Manual', 'Auto', 'AutoOnce']
-        self.whitebalModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 200), wx.Size(200, 1), whitebalModeChoices)   
+        '''Future reference: ['Manual', 'Auto', 'AutoOnce']'''
+        self.whitebalModeComboBox = wx.StaticText(whiteBalancePanel, -1, 'WhiteBalance Here', wx.Point(3, 1), wx.Size(200, -1))   
     
         #Pixel Format Setting
-        pixelFormatChoices = ['Mono8', 'Mono16', 'Bayer8', 'Bayer16', \
+        '''Future reference: pixelFormatChoices = ['Mono8', 'Mono16', 'Bayer8', 'Bayer16', \
                               'Rgb24', 'Bgr24', 'Yuv411', 'Yuv422', \
                               'Yuv444', 'Rgba32', 'Bgra32', 'Rgb48', \
-                              'Mono12Packed', 'Bayer12Packed']
-        self.pixelFormatComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 230), wx.Size(200, -1), pixelFormatChoices)
+                              'Mono12Packed', 'Bayer12Packed']'''
+        self.pixelFormatComboBox = wx.StaticText(pixelFormatPanel, -1, 'PixelFormat Here', wx.Point(3, 1), wx.Size(200, -1))
         
         #Packet Size Setting
-        self.packetSizeTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 260), wx.Size(200, -1))
+        self.packetSizeTextCtrl = wx.StaticText(packetSizePanel, -1, 'PacketSize Here', wx.Point(3, 1), wx.Size(200, -1))
         
         self.acceptSettingsButton = wx.Button(acceptSettingsPanel, SETTINGS_ACCEPT, 'Accept', wx.Point(0, 0), wx.Size(99, 33))            
         self.cancelSettingsButton = wx.Button(acceptSettingsPanel, SETTINGS_CANCEL, 'Cancel', wx.Point(99, 0), wx.Size(99, 33))
