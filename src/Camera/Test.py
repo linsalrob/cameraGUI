@@ -11,6 +11,7 @@ from PIL import Image
 from ctypes import *
 
 p = pvapi.PvAPI()
+c = pvapi.Camera
 pframe = pvapi.Frame
 time.clock()
 
@@ -43,14 +44,14 @@ bitmapToDisplay = wx.Bitmap
 
 #Camera Structure
 class tCamera:
-    pass
+    UID = 0
+    Handle = None
+    Frames = []
+    SaveFrame = False
+    Filename = None
+
 #The following directly accesses an object's contents
 GCamera = tCamera()
-GCamera.UID = 0
-GCamera.Handle = None 
-GCamera.Frames = [] 
-GCamera.SaveFrame = False 
-GCamera.Filename = None 
 
 #Enumeration
 SETTINGS = wx.ID_HIGHEST + 1
@@ -133,10 +134,10 @@ def CameraGet():
         return False
 
 def CameraSetup():
-    GCamera.Handle = p.open(GCamera.UID)
+    GCamera.Handle = c.open(GCamera.UID)
     if GCamera.Handle == None:
         return False
-    frameSize = p.attrUint32Get('TotalBytesPerFrame')
+    frameSize = c.attrUint32Get('TotalBytesPerFrame')
     if frameSize == None:
         return False
     return True
@@ -148,60 +149,64 @@ def CameraUnsetup():
 
 def CameraStart():
     fail = False 
-    if pvapi.Camera.adjustPacketSize(8228) != pvapi.ResultValues.ePvErrSuccess:
+    if c.adjustPacketSize(8228) != pvapi.ResultValues.ePvErrSuccess:
         return False
-    if pvapi.Camera.captureStart() != pvapi.ResultValues.ePvErrSuccess:
+    if c.captureStart() != pvapi.ResultValues.ePvErrSuccess:
         return False  
     for j in range(FRAMESCOUNT):
         if [p.dll.PvCaptureQueueFrame(GCamera.Handle, GCamera.Frames[j], FrameDoneCB) 
-            == p.ePvErrSuccess]:
-            p.captureEnd()
+            == pvapi.ResultValues.ePvErrSuccess]:
+            c.captureEnd()
             fail = True
     if fail:
         return False
-    if [p.attrEnumSet('FrameStartTriggerMode', 'FixedRate') != p.ePvErrSuccess and 
-        p.attrEnumSet('AcquisitionMode', 'Continuous') != p.ePvErrSuccess and 
-        p.commandRun('AcquisitionStart') != p.ePvErrSuccess]:
+    if [c.attrEnumSet('FrameStartTriggerMode', 'FixedRate') != pvapi.ResultValues.ePvErrSuccess and 
+        c.attrEnumSet('AcquisitionMode', 'Continuous') != pvapi.ResultValues.ePvErrSuccess and 
+        c.commandRun('AcquisitionStart') != pvapi.ResultValues.ePvErrSuccess]:
         p.dll.PvCaptureQueueClear(GCamera.Handle)
-        p.captureEnd()
+        c.captureEnd()
         return False
     return True    
 
 def CameraStop():
-    p.commandRun('AcquisitionStop')
+    c.commandRun('AcquisitionStop')
     time.sleep(.2)
     p.dll.PvCaptureQueueClear(GCamera.Handle)
-    p.captureEnd()
+    c.captureEnd()
     
 class MyApp(wx.App):
+    
+    settingsFrame = None
+    frame = None
+    
     def OnInit(self):
         wx.InitAllImageHandlers()
         nextImageTime = time.clock()
         p.initialize()
-       
+        
         WaitForCamera()
         
         if CameraGet() == True:
             if CameraSetup() == True:
                 CameraStart()      
        
-        settingsFrame = SettingsFrame('Settings') 
-        frame = MyFrame('wxCamGui')
-        frame.Show(True)
-        self.SetTopWindow(frame)
+        MyApp.settingsFrame = SettingsFrame('Settings') 
+        MyApp.frame = MyFrame('wxCamGui')
+        MyApp.frame.Show(True)
+        self.SetTopWindow(MyApp.frame)
         
-        val = c_float
-        p.dll.PvAttrFloat32Get(GCamera.Handle, 'FrameRate', byref(val))
-        settingsFrame.frameRateTextCtrl.SetValue(val)
-        settingsFrame.frameStartTriggerModeComboBox.SetValue(p.attrEnumGet('FrameStartTriggerMode'))
-        settingsFrame.exposureModeComboBox.SetValue(p.attrEnumGet('ExposureMode'))
-        settingsFrame.exposureValueTextCtrl.SetValue(p.attrUint32Get('ExposureValue'))
-        settingsFrame.gainModeComboBox.SetValue(p.attrEnumGet('GainMode'))
-        settingsFrame.SetValue(p.attrUint32Get('GainValue'))
-        settingsFrame.whitebalModeComboBox.SetValue(p.attrEnumGet('WhitebalMode'))
-        settingsFrame.pixelFormatComboBox.SetValue(p.attrEnumGet('PixelFormat'))
-        settingsFrame.packetSizeTextCtrl.SetValue(p.attrUint32Get('PacketSize'))
-        
+#        settingsFloat = c_float()
+#        p.dll.PvAttrFloat32Get(GCamera.Handle, 'FrameRate', pointer(settingsFloat))
+#        MyApp.settingsFrame.frameRateTextCtrl.SetValue(str(settingsFloat.value))
+#        MyApp.settingsFrame.frameStartTriggerModeComboBox.SetValue(c.attrEnumGet(GCamera.Handle, 'FrameStartTriggerMode'))
+#        MyApp.settingsFrame.exposureModeComboBox.SetValue(c.attrEnumGet(GCamera, 'ExposureMode'))
+#        MyApp.settingsFrame.exposureValueTextCtrl.SetValue(c.attrUint32Get(GCamera, 'ExposureValue'))
+#        MyApp.settingsFrame.gainModeComboBox.SetValue(c.attrEnumGet(GCamera, 'GainMode'))
+#        MyApp.settingsFrame.SetValue(c.attrUint32Get(GCamera, 'GainValue'))
+#        MyApp.settingsFrame.whitebalModeComboBox.SetValue(c.attrEnumGet(GCamera, 'WhitebalMode'))
+#        MyApp.settingsFrame.pixelFormatComboBox.SetValue(c.attrEnumGet(GCamera, 'PixelFormat'))
+#        MyApp.settingsFrame.packetSizeTextCtrl.SetValue(c.attrUint32Get(GCamera, 'PacketSize'))
+#        
         return True
 
 class MyFrame(wx.Frame):
@@ -317,10 +322,11 @@ class MyFrame(wx.Frame):
             running == False
     
     def OnQuit(self, e):
-        CameraStop()
-        CameraUnsetup()
-        p.uninitialize()
+#        CameraStop()
+#        CameraUnsetup()
+#        p.uninitialize()
         self.Close()
+        MyApp.settingsFrame.SettingsClose(self)
         
     def OnAbout(self, e):
         #The following is the basic layout, need to change info!!!!!!
@@ -357,7 +363,7 @@ class MyFrame(wx.Frame):
         self.displayHoldTextCtrl.SetValue(str3)
     
     def OnSettings(self, e):
-        settingsFrame.ShowSettings(self)
+        MyApp.settingsFrame.ShowSettings(self)
 
 class SettingsFrame(wx.Frame):
     
@@ -382,61 +388,55 @@ class SettingsFrame(wx.Frame):
         wx.StaticText(innerSettingsPanel, -1, 'Packet Size', wx.Point(25, 262))
     
         #Frame Rate Setting
-        frameRateTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 20), wx.Size(200, -1))
-        frameRateTextCtrl.Disable()
+        self.frameRateTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 20), wx.Size(200, -1))
         
         #Frame Start Trigger Mode Setting
         frameStartTriggerModeChoices = ['FreeRun', 'SyncIn1', 'SyncIn2', 'FixedRate', 'Software']
-        frameStartTriggerModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 50), wx.Size(200, -1), frameStartTriggerModeChoices)
-        frameStartTriggerModeComboBox.Disable()
+        self.frameStartTriggerModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 50), wx.Size(200, -1), frameStartTriggerModeChoices)
         
         #Exposure Mode Setting
         exposureModeChoices = ['Manual', 'Auto', 'AutoOnce', 'External']
-        exposureModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 80), wx.Size(200, -1), exposureModeChoices)
-        exposureModeComboBox.Disable()
+        self.exposureModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 80), wx.Size(200, -1), exposureModeChoices)
     
         #Exposure Value Setting
-        exposureValueTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 110), wx.Size(200, -1))
+        self.exposureValueTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 110), wx.Size(200, -1))
     
-        #Gaing Mode Choices Setting
+        #Gain Mode Choices Setting
         gainModeChoices = ['Manual', 'Auto', 'AutoOnce']
-        gainModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 140), wx.Size(200, -1), gainModeChoices)
-        gainModeComboBox.Disable()
+        self.gainModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 140), wx.Size(200, -1), gainModeChoices)
         
         #Gain Value Setting
-        gainValueTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 170), wx.Size(200, -1))
+        self.gainValueTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 170), wx.Size(200, -1))
     
         #White Balance Mode Setting
         whitebalModeChoices = ['Manual', 'Auto', 'AutoOnce']
-        whitebalModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 200), wx.Size(200, 1), whitebalModeChoices)
-        whitebalModeComboBox.Disable()    
+        self.whitebalModeComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 200), wx.Size(200, 1), whitebalModeChoices)   
     
         #Pixel Format Setting
         pixelFormatChoices = ['Mono8', 'Mono16', 'Bayer8', 'Bayer16', \
                               'Rgb24', 'Bgr24', 'Yuv411', 'Yuv422', \
                               'Yuv444', 'Rgba32', 'Bgra32', 'Rgb48', \
                               'Mono12Packed', 'Bayer12Packed']
-        pixelFormatComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 230), wx.Size(200, -1), pixelFormatChoices)
+        self.pixelFormatComboBox = wx.ComboBox(innerSettingsPanel, -1, '', wx.Point(200, 230), wx.Size(200, -1), pixelFormatChoices)
         
         #Packet Size Setting
-        packetSizeTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 260), wx.Size(200, -1))
-        packetSizeTextCtrl.Disable()
+        self.packetSizeTextCtrl = wx.TextCtrl(innerSettingsPanel, -1, '', wx.Point(200, 260), wx.Size(200, -1))
         
-        acceptSettingsButton = wx.Button(acceptSettingsPanel, SETTINGS_ACCEPT, 'Accept', wx.Point(0, 0), wx.Size(99, 33))            
-        cancelSettingsButton = wx.Button(acceptSettingsPanel, SETTINGS_CANCEL, 'Cancel', wx.Point(99, 0), wx.Size(99, 33))
-        self.Bind(wx.EVT_MENU, self.OnAcceptSettings, acceptSettingsButton)
-        self.Bind(wx.EVT_MENU, self.OnCancelSettings, cancelSettingsButton)
+        self.acceptSettingsButton = wx.Button(acceptSettingsPanel, SETTINGS_ACCEPT, 'Accept', wx.Point(0, 0), wx.Size(99, 33))            
+        self.cancelSettingsButton = wx.Button(acceptSettingsPanel, SETTINGS_CANCEL, 'Cancel', wx.Point(99, 0), wx.Size(99, 33))
+        self.Bind(wx.EVT_MENU, self.OnAcceptSettings, self.acceptSettingsButton)
+        self.Bind(wx.EVT_MENU, self.OnCancelSettings, self.cancelSettingsButton)
     
     def OnAcceptSettings(self, e):
         frameRate = c_float(self.frameRateTextCtrl.GetValue())
         p.dll.PvAttrFloat32Set(GCamera.Handle, 'FrameRate', frameRate)
-        p.attrEnumSet('ExposureMode', self.exposureModeComboBox.GetValue())
-        p.attrUint32Set('ExposureValue', self.exposureValueTextCtrl.GetValue())
-        p.attrEnumSet('GainMode', self.gainModeComboBox.GetValue())
-        p.attrUint32Set('GainValue', self.gainValueTextCtrl.GetValue())
-        p.attrEnumSet('WhitebalMode', self.whitebalModeComboBox.GetValue())
-        p.attrEnumSet('PixelFormat', self.pixelFormatComboBox.GetValue())
-        p.attrUint32Set('PacketSize', self.packetSizeTextCtrl.GetValue())
+        c.attrEnumSet('ExposureMode', self.exposureModeComboBox.GetValue())
+        c.attrUint32Set('ExposureValue', self.exposureValueTextCtrl.GetValue())
+        c.attrEnumSet('GainMode', self.gainModeComboBox.GetValue())
+        c.attrUint32Set('GainValue', self.gainValueTextCtrl.GetValue())
+        c.attrEnumSet('WhitebalMode', self.whitebalModeComboBox.GetValue())
+        c.attrEnumSet('PixelFormat', self.pixelFormatComboBox.GetValue())
+        c.attrUint32Set('PacketSize', self.packetSizeTextCtrl.GetValue())
         self.ShowSettings(False)
     
     def OnCancelSettings(self, e):
@@ -447,9 +447,6 @@ class SettingsFrame(wx.Frame):
     
     def SettingsClose(self, e):
         self.Close()    
-    
-    def OnQuit(self, e):
-        self.Close()
 
 if __name__ == '__main__':
     app = MyApp(False)
