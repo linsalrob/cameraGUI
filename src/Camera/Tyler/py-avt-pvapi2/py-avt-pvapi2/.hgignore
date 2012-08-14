@@ -1,6 +1,0 @@
-# ignore dlls and compiled python files
-syntax: glob
-*.dll
-*.pyc
-*~
-
